@@ -284,8 +284,18 @@ def signed_distance(mesh, points):
     )
     distance[nonzero[ontriangle]] *= -1.0 * sign
 
-    # For all other triangles, resort to raycasting against the entire mesh
-    inside = mesh.ray.contains_points(points[nonzero[~ontriangle]])
+    # For all other triangles, resort to raycasting against the entire mesh.
+    # A point outside the mesh's axis aligned bounding box cannot be inside
+    # the mesh, so only the points within the box are ray cast.
+    remaining = points[nonzero[~ontriangle]]
+    bounds = mesh.bounds
+    in_box = np.logical_and(
+        (remaining >= bounds[0] - tol.merge).all(axis=1),
+        (remaining <= bounds[1] + tol.merge).all(axis=1),
+    )
+    inside = np.zeros(len(remaining), dtype=bool)
+    if in_box.any():
+        inside[in_box] = mesh.ray.contains_points(remaining[in_box])
     sign = (inside.astype(int) * 2) - 1.0
 
     # apply sign to previously computed distance
